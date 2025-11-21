@@ -8,18 +8,21 @@
  * Environment Variable Required:
  * - BACKEND_API_URL: Base URL of your Spring Boot backend (e.g., http://localhost:8080)
  * 
- * Request: { message: string, pdfId: string, history: Array<{role: string, content: string}> }
+ * Request: { message: string, sessionId: string }
  * Expected response: { response: string }
  * 
  * Current implementation: Uses backend API if BACKEND_API_URL is set, otherwise returns mock responses
  */
 export async function POST(request: Request) {
   try {
-    const { message, pdfId, history } = await request.json()
+    const { message,  sessionId } = await request.json()
 
     // Validate input
     if (!message || message.trim() === "") {
       return Response.json({ error: "Message cannot be empty" }, { status: 400 })
+    }
+    if (!sessionId) {
+      return Response.json({ error: "SessionId is required" }, { status: 400 })
     }
 
     // Get backend URL from environment variable
@@ -31,7 +34,7 @@ export async function POST(request: Request) {
         const response = await fetch(`${BACKEND_API_URL}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, pdfId, history }),
+          body: JSON.stringify({ message, sessionId }),
         })
 
         if (!response.ok) {

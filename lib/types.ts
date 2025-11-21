@@ -10,4 +10,5 @@ export type UploadedDocument = {
   name: string
   file?: File
   pdfId?: string // ID returned from the upload API
+  sessionId?: string // Session ID returned from the upload API
 }

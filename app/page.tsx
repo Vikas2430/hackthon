@@ -62,6 +62,7 @@ export default function Home() {
         name: file.name,
         file: file,
         pdfId: uploadResult.id || uploadResult.pdfId || uploadResult.pdf_id, // Store PDF ID from API
+        sessionId: uploadResult.sessionId, // Store sessionId from API
       }
 
       // Only allow 1 PDF at a time - replace existing one if present
@@ -117,15 +118,16 @@ export default function Home() {
     try {
       const activeDoc = uploadedDocuments.find((doc) => doc.id === activeDocumentId)
 
-      const history = (messagesByDoc[activeDocumentId] ?? []).concat(userMessage).map((m) => ({ role: m.role, content: m.content }))
+      if (!activeDoc?.sessionId) {
+        throw new Error("Session ID is missing. Please upload a PDF first.")
+      }
 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
-          pdfId: activeDoc?.pdfId || activeDoc?.name, // Use PDF ID from API if available, fallback to name
-          history,
+          sessionId: activeDoc.sessionId,
         }),
       })
 

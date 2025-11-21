@@ -10,7 +10,7 @@ import { NextResponse } from "next/server"
  * Environment Variable Required:
  * - BACKEND_API_URL: Base URL of your Spring Boot backend (e.g., http://localhost:8080)
  * 
- * Expected response format: { id: string, pdfId?: string, pdf_id?: string }
+ * Expected response format: { message: string, sessionId: string, id?: string, pdfId?: string, pdf_id?: string }
  * 
  * Current implementation: Proxies the request to the external API
  */
