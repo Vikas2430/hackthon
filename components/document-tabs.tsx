@@ -24,7 +24,7 @@ export default function DocumentTabs({
   return (
     <div className="glass-effect rounded-2xl p-4 border-gradient">
       <p className="text-xs font-medium text-primary mb-3 uppercase tracking-wide">
-        Active Documents ({documents.length}/5)
+        Active Documents
       </p>
       <div className="space-y-2">
         {documents.map((doc) => (
@@ -52,11 +52,6 @@ export default function DocumentTabs({
           </div>
         ))}
       </div>
-      {documents.length >= 5 && (
-        <p className="text-xs text-yellow-600/70 mt-3 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
-          Maximum 5 documents reached. Uploading a new one will clear the list.
-        </p>
-      )}
     </div>
   )
 }

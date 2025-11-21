@@ -41,12 +41,9 @@ export default function Home() {
       file: file,
     }
 
-    if (uploadedDocuments.length >= 5) {
-      setUploadedDocuments([newDoc])
-      setMessagesByDoc({ [newDoc.id]: [] })
-    } else {
-      setUploadedDocuments((prev) => [...prev, newDoc])
-    }
+    // Only allow 1 PDF at a time - replace existing one if present
+    setUploadedDocuments([newDoc])
+    setMessagesByDoc({ [newDoc.id]: [] })
 
     setActiveDocumentId(newDoc.id)
 

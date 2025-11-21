@@ -74,7 +74,7 @@ export default function PDFUploader({ onUpload }: PDFUploaderProps) {
 
   return (
     <Card className="glass-effect border-gradient shadow-2xl shadow-primary/10 col-span-full lg:col-span-3">
-      <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5 border-b border-white/10">
+      <CardHeader className=" from-primary/5 to-secondary/5 border-b border-white/10">
         <CardTitle className="text-gradient flex items-center gap-2">
           <FileText className="w-6 h-6 text-primary" />
           Upload Your PDF
@@ -118,7 +118,7 @@ export default function PDFUploader({ onUpload }: PDFUploaderProps) {
             <div className="mt-8">
               <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-primary to-secondary h-full smooth-transition"
+                  className="from-primary to-secondary h-full smooth-transition"
                   style={{ width: `${uploadProgress}%` }}
                 />
               </div>

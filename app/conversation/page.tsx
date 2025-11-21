@@ -550,7 +550,7 @@ export default function ConversationPage() {
                   </div>
                   {uploadedPdf ? (
                     <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-400/10 border border-emerald-400/20">
-                      <FileText className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      <FileText className="w-4 h-4 text-emerald-400" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">{pdfName}</p>
                       </div>

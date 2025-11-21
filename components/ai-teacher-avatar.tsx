@@ -73,12 +73,12 @@ export default function AITeacherAvatar({ isSpeaking = false, isConnected = fals
 
       {/* Main avatar container */}
       <div
-        className={`relative ${sizeClasses[size]} rounded-full bg-gradient-to-br from-primary via-primary/90 to-secondary flex items-center justify-center shadow-2xl shadow-primary/30 transition-all duration-300 ${
+        className={`relative ${sizeClasses[size]} rounded-full from-primary via-primary/90 to-secondary flex items-center justify-center shadow-2xl shadow-primary/30 transition-all duration-300 ${
           isSpeaking ? "scale-105" : "scale-100"
         } ${isConnected ? "ring-4 ring-emerald-400/50" : "ring-2 ring-white/20"}`}
       >
         {/* Face background */}
-        <div className="absolute inset-2 rounded-full bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm" />
+        <div className="absolute inset-2 rounded-full from-white/10 to-white/5 backdrop-blur-sm" />
 
         {/* Eyes */}
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 flex gap-3 -translate-y-1/2">
