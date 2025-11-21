@@ -8,10 +8,11 @@ import { Upload, FileText, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface PDFUploaderProps {
-  onUpload: (file: File) => void
+  onUpload: (file: File) => Promise<void>
+  isUploading?: boolean
 }
 
-export default function PDFUploader({ onUpload }: PDFUploaderProps) {
+export default function PDFUploader({ onUpload, isUploading = false }: PDFUploaderProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -31,19 +32,21 @@ export default function PDFUploader({ onUpload }: PDFUploaderProps) {
     return true
   }
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     if (validateFile(file)) {
-      // Simulate upload progress
-      let progress = 0
-      const interval = setInterval(() => {
-        progress += Math.random() * 30
-        if (progress > 100) {
-          progress = 100
-          clearInterval(interval)
-          onUpload(file)
-        }
-        setUploadProgress(progress)
-      }, 100)
+      setUploadProgress(0)
+      // Show initial progress
+      setUploadProgress(10)
+      
+      try {
+        await onUpload(file)
+        setUploadProgress(100)
+        // Reset progress after a moment
+        setTimeout(() => setUploadProgress(0), 1000)
+      } catch (error) {
+        setUploadProgress(0)
+        setError(error instanceof Error ? error.message : "Failed to upload PDF")
+      }
     }
   }
 
@@ -109,8 +112,13 @@ export default function PDFUploader({ onUpload }: PDFUploaderProps) {
             aria-label="Upload PDF file"
           />
 
-          <Button onClick={() => fileInputRef.current?.click()} size="lg" className="btn-primary rounded-full px-8">
-            Browse Files
+          <Button 
+            onClick={() => fileInputRef.current?.click()} 
+            size="lg" 
+            className="btn-primary rounded-full px-8"
+            disabled={isUploading}
+          >
+            {isUploading ? "Uploading..." : "Browse Files"}
           </Button>
 
           {/* Upload Progress */}

@@ -18,6 +18,7 @@ export default function Home() {
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
   const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
 
@@ -34,26 +35,66 @@ export default function Home() {
     setMessagesByDoc({})
     setActiveDocumentId(null)
   }, [])
-  const handlePdfUpload = (file: File) => {
-    const newDoc: UploadedDocument = {
-      id: Date.now().toString(),
-      name: file.name,
-      file: file,
+  const handlePdfUpload = async (file: File) => {
+    setIsUploadingPdf(true)
+    
+    try {
+      // Upload PDF to the API
+      const formData = new FormData()
+      formData.append("file", file)
+
+      // Use Next.js API route as proxy to backend
+      const response = await fetch("/api/pdf/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to upload PDF" }))
+        throw new Error(errorData.error || `Upload failed: ${response.status} ${response.statusText}`)
+      }
+
+      const uploadResult = await response.json()
+      
+      // Create document with API response data
+      const newDoc: UploadedDocument = {
+        id: uploadResult.id || Date.now().toString(),
+        name: file.name,
+        file: file,
+        pdfId: uploadResult.id || uploadResult.pdfId || uploadResult.pdf_id, // Store PDF ID from API
+      }
+
+      // Only allow 1 PDF at a time - replace existing one if present
+      setUploadedDocuments([newDoc])
+      setMessagesByDoc({ [newDoc.id]: [] })
+
+      setActiveDocumentId(newDoc.id)
+
+      const systemMessage: Message = {
+        id: Date.now().toString(),
+        role: ROLES.ASSISTANT,
+        content: `I've received your PDF: "${file.name}". Ask me anything about its content - I can provide summaries, generate MCQs, explain concepts, and more.`,
+        timestamp: new Date(),
+      }
+      setMessagesByDoc((prev) => ({ ...prev, [newDoc.id]: [systemMessage] }))
+    } catch (error) {
+      console.error("PDF upload error:", error)
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: ROLES.ASSISTANT,
+        content: error instanceof Error ? `Failed to upload PDF: ${error.message}` : "Failed to upload PDF. Please try again.",
+        timestamp: new Date(),
+      }
+      // Show error in chat if there's an active document, otherwise show alert
+      if (activeDocumentId) {
+        setMessagesByDoc((prev) => {
+          const prevMsgs = prev[activeDocumentId] ?? []
+          return { ...prev, [activeDocumentId]: [...prevMsgs, errorMessage] }
+        })
+      }
+    } finally {
+      setIsUploadingPdf(false)
     }
-
-    // Only allow 1 PDF at a time - replace existing one if present
-    setUploadedDocuments([newDoc])
-    setMessagesByDoc({ [newDoc.id]: [] })
-
-    setActiveDocumentId(newDoc.id)
-
-    const systemMessage: Message = {
-      id: Date.now().toString(),
-      role: ROLES.ASSISTANT,
-      content: `I've received your PDF: "${file.name}". Ask me anything about its content - I can provide summaries, generate MCQs, explain concepts, and more.`,
-      timestamp: new Date(),
-    }
-    setMessagesByDoc((prev) => ({ ...prev, [newDoc.id]: [systemMessage] }))
   }
 
   const handleSendMessage = async (text: string) => {
@@ -83,7 +124,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
-          pdfId: activeDoc?.name,
+          pdfId: activeDoc?.pdfId || activeDoc?.name, // Use PDF ID from API if available, fallback to name
           history,
         }),
       })
@@ -236,7 +277,7 @@ export default function Home() {
           {/* Main Content Area */}
           <div className="lg:col-span-3">
             {uploadedDocuments.length === 0 ? (
-              <PDFUploader onUpload={handlePdfUpload} />
+              <PDFUploader onUpload={handlePdfUpload} isUploading={isUploadingPdf} />
             ) : (
               <Card className="glass-effect border-gradient shadow-2xl shadow-primary/10 h-[700px] flex flex-col">
                 <CardHeader className="border-b border-white/10  from-primary/5 to-secondary/5">

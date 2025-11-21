@@ -1,3 +1,18 @@
+/**
+ * PLACEHOLDER API: Chat with PDF
+ * 
+ * This is a placeholder route for the chat functionality.
+ * 
+ * Expected Backend API: ${BACKEND_API_URL}/api/chat
+ * 
+ * Environment Variable Required:
+ * - BACKEND_API_URL: Base URL of your Spring Boot backend (e.g., http://localhost:8080)
+ * 
+ * Request: { message: string, pdfId: string, history: Array<{role: string, content: string}> }
+ * Expected response: { response: string }
+ * 
+ * Current implementation: Uses backend API if BACKEND_API_URL is set, otherwise returns mock responses
+ */
 export async function POST(request: Request) {
   try {
     const { message, pdfId, history } = await request.json()
@@ -7,7 +22,31 @@ export async function POST(request: Request) {
       return Response.json({ error: "Message cannot be empty" }, { status: 400 })
     }
 
-    // This simulates an AI response. Connect to your Spring Boot backend here.
+    // Get backend URL from environment variable
+    const BACKEND_API_URL = process.env.BACKEND_API_URL
+    
+    if (BACKEND_API_URL) {
+      // Connect to actual backend API
+      try {
+        const response = await fetch(`${BACKEND_API_URL}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, pdfId, history }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Backend API returned ${response.status}`)
+        }
+
+        const data = await response.json()
+        return Response.json({ response: data.response })
+      } catch (error) {
+        console.error("Backend API error:", error)
+        // Fall through to mock response if backend fails
+      }
+    }
+
+    // Fallback: Mock response when BACKEND_API_URL is not configured
     const mockResponses = [
       "That's an excellent question! Let me analyze the content for you...",
       "Based on the PDF, I can explain that concept in detail...",

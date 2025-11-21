@@ -9,4 +9,5 @@ export type UploadedDocument = {
   id: string
   name: string
   file?: File
+  pdfId?: string // ID returned from the upload API
 }

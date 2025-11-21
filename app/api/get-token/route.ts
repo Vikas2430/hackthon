@@ -3,6 +3,23 @@ import { NextResponse } from "next/server"
 import { AccessToken } from "livekit-server-sdk"
 import type { VideoGrant } from "livekit-server-sdk"
 
+/**
+ * API: LiveKit Token Generation
+ * 
+ * This route generates LiveKit access tokens for real-time audio/video connections.
+ * 
+ * Status: ✅ IMPLEMENTED - Fully functional
+ * 
+ * Environment Variables Required:
+ * - LIVEKIT_API_KEY: Your LiveKit API key
+ * - LIVEKIT_API_SECRET: Your LiveKit API secret
+ * - LIVEKIT_URL: Your LiveKit server URL (optional, has default)
+ * 
+ * Query Parameters:
+ * - room: Room name (optional, defaults to "default")
+ * 
+ * Returns: { token: string, identity: string, room: string }
+ */
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url)
