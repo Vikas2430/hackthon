@@ -2,26 +2,13 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
-import type { Message, UploadedDocument } from "@/lib/types"
-import { LS_KEYS, ROLES } from "@/lib/constants"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import PDFUploader from "@/components/pdf-uploader"
-import ChatInterface from "@/components/chat-interface"
-import DocumentTabs from "@/components/document-tabs"
+import { useEffect } from "react"
+import { LS_KEYS } from "@/lib/constants"
+import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Sparkles, Zap, Brain, Volume2 } from "lucide-react"
-
+import { Sparkles, Zap, Brain, Volume2, GraduationCap, BookOpen, MessageCircle, Headphones, ArrowRight, CheckCircle2, Users, Mic } from "lucide-react"
 
 export default function Home() {
-  const [messagesByDoc, setMessagesByDoc] = useState<Record<string, Message[]>>({})
-  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([])
-  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isUploadingPdf, setIsUploadingPdf] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-
   useEffect(() => {
     try {
       localStorage.removeItem(LS_KEYS.uploads)
@@ -30,180 +17,7 @@ export default function Home() {
     } catch (e) {
       console.warn("Failed to clear persisted data on mount:", e)
     }
- 
-    setUploadedDocuments([])
-    setMessagesByDoc({})
-    setActiveDocumentId(null)
   }, [])
-  const handlePdfUpload = async (file: File) => {
-    setIsUploadingPdf(true)
-    
-    try {
-      // Upload PDF to the API
-      const formData = new FormData()
-      formData.append("file", file)
-
-      // Use Next.js API route as proxy to backend
-      const response = await fetch("/api/pdf/upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Failed to upload PDF" }))
-        throw new Error(errorData.error || `Upload failed: ${response.status} ${response.statusText}`)
-      }
-
-      const uploadResult = await response.json()
-      
-      // Create document with API response data
-      const newDoc: UploadedDocument = {
-        id: uploadResult.id || Date.now().toString(),
-        name: file.name,
-        file: file,
-        pdfId: uploadResult.id || uploadResult.pdfId || uploadResult.pdf_id, // Store PDF ID from API
-        sessionId: uploadResult.sessionId, // Store sessionId from API
-      }
-
-      // Only allow 1 PDF at a time - replace existing one if present
-      setUploadedDocuments([newDoc])
-      setMessagesByDoc({ [newDoc.id]: [] })
-
-      setActiveDocumentId(newDoc.id)
-
-      const systemMessage: Message = {
-        id: Date.now().toString(),
-        role: ROLES.ASSISTANT,
-        content: `I've received your PDF: "${file.name}". Ask me anything about its content - I can provide summaries, generate MCQs, explain concepts, and more.`,
-        timestamp: new Date(),
-      }
-      setMessagesByDoc((prev) => ({ ...prev, [newDoc.id]: [systemMessage] }))
-    } catch (error) {
-      console.error("PDF upload error:", error)
-      const errorMessage: Message = {
-        id: Date.now().toString(),
-        role: ROLES.ASSISTANT,
-        content: error instanceof Error ? `Failed to upload PDF: ${error.message}` : "Failed to upload PDF. Please try again.",
-        timestamp: new Date(),
-      }
-      // Show error in chat if there's an active document, otherwise show alert
-      if (activeDocumentId) {
-        setMessagesByDoc((prev) => {
-          const prevMsgs = prev[activeDocumentId] ?? []
-          return { ...prev, [activeDocumentId]: [...prevMsgs, errorMessage] }
-        })
-      }
-    } finally {
-      setIsUploadingPdf(false)
-    }
-  }
-
-  const handleSendMessage = async (text: string) => {
-    if (!activeDocumentId) return
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: ROLES.USER,
-      content: text,
-      timestamp: new Date(),
-    }
-
-    setMessagesByDoc((prev) => {
-      const prevMsgs = prev[activeDocumentId] ?? []
-      return { ...prev, [activeDocumentId]: [...prevMsgs, userMessage] }
-    })
-
-    setIsLoading(true)
-
-    try {
-      const activeDoc = uploadedDocuments.find((doc) => doc.id === activeDocumentId)
-
-      if (!activeDoc?.sessionId) {
-        throw new Error("Session ID is missing. Please upload a PDF first.")
-      }
-
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          sessionId: activeDoc.sessionId,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (!data.response) {
-        throw new Error("Invalid response format from API")
-      }
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: ROLES.ASSISTANT,
-        content: data.response,
-        timestamp: new Date(),
-      }
-
-      setMessagesByDoc((prev) => {
-        const prevMsgs = prev[activeDocumentId] ?? []
-        return { ...prev, [activeDocumentId]: [...prevMsgs, assistantMessage] }
-      })
-    } catch (error) {
-      console.error("[v0] Chat error:", error)
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: ROLES.ASSISTANT,
-        content: "Sorry, I encountered an error. Please try again.",
-        timestamp: new Date(),
-      }
-      setMessagesByDoc((prev) => {
-        const prevMsgs = prev[activeDocumentId] ?? []
-        return { ...prev, [activeDocumentId]: [...prevMsgs, errorMessage] }
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleVoiceInput = async (transcript: string) => {
-    await handleSendMessage(transcript)
-  }
-
-  const handleRemoveDocument = (id: string) => {
-    const remaining = uploadedDocuments.filter((doc) => doc.id !== id)
-    setUploadedDocuments(remaining)
-    setMessagesByDoc((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-
-    if (activeDocumentId === id) {
-      setActiveDocumentId(remaining[0]?.id || null)
-    }
-  }
-
-  const handleSwitchDocument = (id: string) => {
-    setActiveDocumentId(id)
-  }
-
-  const handleUploadAnotherClick = () => {
-    fileInputRef.current?.click()
-  }
-
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.currentTarget.files?.[0]
-    if (file) {
-      handlePdfUpload(file)
-    }
-  }
-
-  const activeDocument = uploadedDocuments.find((doc) => doc.id === activeDocumentId)
-  const currentMessages = (activeDocumentId && messagesByDoc[activeDocumentId]) || []
 
   return (
     <main className="min-h-screen from-background via-background to-primary/5">
@@ -213,127 +27,221 @@ export default function Home() {
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
-        {/* Premium Header */}
-        <div className="mb-12 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4 animate-fade-in">
-            <div className="p-3 rounded-full from-primary to-secondary shadow-lg shadow-primary/30">
-              <Sparkles className="w-6 h-6 text-white" />
+        {/* Hero Section */}
+        <div className="mb-16 text-center">
+          <div className="flex items-center justify-center gap-3 mb-6 animate-fade-in">
+            <div className="p-4 rounded-2xl from-primary to-secondary shadow-2xl shadow-primary/40">
+              <GraduationCap className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-5xl font-bold text-gradient">HelpmeStudy</h1>
+            <h1 className="text-6xl md:text-7xl font-bold text-gradient">Brofessor</h1>
           </div>
-          <p className="text-lg text-muted-foreground mb-2">Your AI-Powered Learning Companion</p>
-          <p className="text-sm text-muted-foreground/70 max-w-xl mx-auto">
-            Transform your learning with advanced AI analysis, voice interactions, and instant insights from any PDF.
+          <p className="text-2xl md:text-3xl font-semibold text-foreground mb-4">
+            Your AI Tutor That Talks, Explains, and Engages
           </p>
+          <p className="text-lg text-muted-foreground mb-6 max-w-3xl mx-auto leading-relaxed">
+            Meet <span className="font-semibold text-primary">Brofessor</span>, the world's first AI tutor designed for <span className="font-semibold text-secondary">auditory learning</span>. Perfect for those who learn best by listening, Brofessor talks, explains, and adapts — just like a real tutor.
+          </p>
+          <div className="flex items-center justify-center gap-4 mt-8">
+            <Link href="/conversation">
+              <Button size="lg" className="btn-primary rounded-full px-8 py-6 text-lg font-semibold group">
+                <Headphones className="w-5 h-5 mr-2" />
+                Start Learning with Brofessor
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+          </div>
         </div>
 
-        {/* Main Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Left Sidebar */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Live Conversation Banner */}
-            <Link href="/conversation">
-              <div className="glass-effect rounded-2xl p-6 border-gradient cursor-pointer hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 group mb-4 from-primary/10 via-secondary/5 to-transparent">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-3 rounded-xl from-primary to-secondary group-hover:scale-110 transition-transform">
-                    <Volume2 className="w-5 h-5 text-white" />
+        {/* Main Value Proposition */}
+        <div className="mb-16">
+            <div className="glass-effect rounded-3xl p-8 md:p-12 border-gradient shadow-2xl">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl md:text-4xl font-bold text-gradient mb-4">
+                  🎓 Learn From Your PDFs Like Never Before
+                </h2>
+                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+                  Just upload any PDF — textbooks, manuals, work documents, research papers — and Brofessor becomes your personal <span className="font-semibold text-primary">audio tutor</span> for that content.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
+                <div className="text-center p-6 rounded-xl bg-white/5 border border-white/10">
+                  <BookOpen className="w-8 h-8 text-primary mx-auto mb-3" />
+                  <h3 className="font-semibold text-foreground mb-2">Extracts & Understands</h3>
+                  <p className="text-sm text-muted-foreground">Your notes from PDFs</p>
+                </div>
+                <div className="text-center p-6 rounded-xl bg-white/5 border border-white/10">
+                  <Volume2 className="w-8 h-8 text-secondary mx-auto mb-3" />
+                  <h3 className="font-semibold text-foreground mb-2">Explains in Real-Time</h3>
+                  <p className="text-sm text-muted-foreground">Through clear speech</p>
+                </div>
+                <div className="text-center p-6 rounded-xl bg-white/5 border border-white/10">
+                  <Zap className="w-8 h-8 text-primary mx-auto mb-3" />
+                  <h3 className="font-semibold text-foreground mb-2">Study Faster & Smarter</h3>
+                  <p className="text-sm text-muted-foreground">With auditory learning</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        {/* Animated AI Tutor Section */}
+        <div className="mb-16">
+            <div className="glass-effect rounded-3xl p-8 md:p-12 border-gradient">
+              <div className="flex flex-col md:flex-row items-center gap-8">
+                <div className="flex-1">
+                  <h2 className="text-3xl md:text-4xl font-bold text-gradient mb-4">
+                    🧑‍🏫 Meet the Animated AI Tutor
+                  </h2>
+                  <p className="text-lg text-muted-foreground mb-6">
+                    A friendly, animated figure — <span className="font-semibold">glasses, red bow tie, full personality</span> — that:
+                  </p>
+                  <ul className="space-y-3">
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary mt-1 shrink-0" />
+                      <span className="text-foreground">Speaks to you in <span className="font-semibold">real time</span></span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary mt-1 shrink-0" />
+                      <span className="text-foreground">Moves and animates while talking</span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-primary mt-1 shrink-0" />
+                      <span className="text-foreground">Gives visual feedback to complement audio explanations</span>
+                    </li>
+                  </ul>
+                  <p className="text-lg font-semibold text-primary mt-6">
+                    It's like having a tutor who teaches <span className="text-secondary">with your ears first</span>.
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <Link href="/conversation">
+                    <div className="w-64 h-64 rounded-2xl from-primary/20 to-secondary/20 border-2 border-primary/30 flex items-center justify-center cursor-pointer hover:scale-105 transition-transform group">
+                      <div className="text-center">
+                        <GraduationCap className="w-16 h-16 text-primary mx-auto mb-3 group-hover:scale-110 transition-transform" />
+                        <p className="text-sm font-semibold text-foreground">See Brofessor in Action</p>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        {/* Features Grid */}
+        <div className="mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-center text-gradient mb-10">
+              ⚡ Why Choose Brofessor?
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FeatureCard
+                icon={MessageCircle}
+                title="Cross-Question Your Tutor"
+                description="Confused? Ask again. Want deeper clarity? Ask why. Don't agree? Challenge it. Brofessor responds instantly, keeping the conversation going — all through auditory interaction."
+                color="primary"
+              />
+              <FeatureCard
+                icon={GraduationCap}
+                title="Modes That Match Your Style"
+                description="Choose Beginner (simple), Advanced (detailed), or Expert (deep technical). Switch modes anytime based on your comfort level."
+                color="secondary"
+              />
+              <FeatureCard
+                icon={Mic}
+                title="Voice-Focused Learning"
+                description="Have a live voice conversation with Brofessor. Audio-first experience with optional text support. Brofessor stays context-aware, using your PDF to guide every explanation."
+                color="primary"
+              />
+              <FeatureCard
+                icon={Users}
+                title="Real-Time Feedback Loop"
+                description="Tell Brofessor if you understood, you're confused, or want more examples. The tutor adapts instantly, keeping your auditory learning experience smooth and personalized."
+                color="secondary"
+              />
+            </div>
+          </div>
+
+        {/* How It Works */}
+        <div className="mb-16">
+            <div className="glass-effect rounded-3xl p-8 md:p-12 border-gradient">
+              <h2 className="text-3xl md:text-4xl font-bold text-center text-gradient mb-10">
+                🚀 Start Learning Smarter
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <StepCard number={1} title="Upload Your PDF" description="Drag and drop or browse your files" />
+                <StepCard number={2} title="Choose Your Mode" description="Beginner, Advanced, or Expert" />
+                <StepCard number={3} title="Start Talking" description="Listen and talk with Brofessor" />
+                <StepCard number={4} title="Learn Faster" description="Get deeper, better understanding" />
+              </div>
+              <div className="text-center mt-10">
+                <p className="text-xl font-semibold text-foreground mb-2">
+                  Your PDF. Your pace. Your <span className="text-gradient">auditory tutor</span>.
+                </p>
+                <p className="text-lg text-muted-foreground">
+                  <span className="font-bold text-primary">Brofessor</span> — Turning your notes into knowledge you can hear.
+                </p>
+              </div>
+            </div>
+          </div>
+
+        {/* Navigation Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            {/* Chat with Brofessor Card */}
+            <Link href="/chat">
+              <div className="glass-effect rounded-3xl p-8 border-gradient cursor-pointer hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 group from-primary/10 via-secondary/5 to-transparent h-full">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-4 rounded-2xl from-primary to-secondary group-hover:scale-110 transition-transform shadow-lg">
+                    <GraduationCap className="w-8 h-8 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">Live Conversation</h3>
-                    <p className="text-xs text-muted-foreground mt-1">Talk with AI Teacher</p>
+                    <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors">Chat with Brofessor</h3>
+                    <p className="text-sm text-muted-foreground mt-1">Text-based Learning</p>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Have a real-time voice conversation with your AI Teacher. The avatar animates when speaking.
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                  Upload your PDF and ask questions about it. Get instant text responses from Brofessor about your documents.
                 </p>
-                <div className="mt-4 flex items-center gap-2 text-xs font-medium text-primary group-hover:gap-3 transition-all">
-                  Start Conversation
-                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                <div className="flex items-center gap-2 text-primary font-semibold group-hover:gap-3 transition-all">
+                  Start Chatting
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
             </Link>
 
-            {/* Features Showcase */}
-            <div className="glass-effect rounded-2xl p-6 border-gradient">
-              <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                <Zap className="w-4 h-4 text-primary" />
-                Capabilities
-              </h3>
-              <div className="space-y-3">
-                <FeatureItem icon={Brain} label="Smart Analysis" desc="Instant PDF insights" />
-                <FeatureItem icon={Volume2} label="Voice Input" desc="Speak your questions" />
-                <FeatureItem icon={Sparkles} label="AI Responses" desc="Expert explanations" />
+            {/* Talk with Brofessor Card */}
+            <Link href="/conversation">
+              <div className="glass-effect rounded-3xl p-8 border-gradient cursor-pointer hover:shadow-2xl hover:shadow-primary/20 transition-all duration-300 group from-primary/10 via-secondary/5 to-transparent h-full">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="p-4 rounded-2xl from-primary to-secondary group-hover:scale-110 transition-transform shadow-lg">
+                    <Headphones className="w-8 h-8 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors">Talk with Brofessor</h3>
+                    <p className="text-sm text-muted-foreground mt-1">Live Voice Conversation</p>
+                  </div>
+                </div>
+                <p className="text-muted-foreground mb-6 leading-relaxed">
+                  Have a real-time voice conversation with Brofessor. The animated avatar speaks and responds to you in real-time.
+                </p>
+                <div className="flex items-center gap-2 text-primary font-semibold group-hover:gap-3 transition-all">
+                  Start Conversation
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </div>
               </div>
-            </div>
-
-            {uploadedDocuments.length > 0 && (
-              <DocumentTabs
-                documents={uploadedDocuments}
-                activeDocumentId={activeDocumentId}
-                onSwitchDocument={handleSwitchDocument}
-                onRemoveDocument={handleRemoveDocument}
-              />
-            )}
+            </Link>
           </div>
 
-          {/* Main Content Area */}
-          <div className="lg:col-span-3">
-            {uploadedDocuments.length === 0 ? (
-              <PDFUploader onUpload={handlePdfUpload} isUploading={isUploadingPdf} />
-            ) : (
-              <Card className="glass-effect border-gradient shadow-2xl shadow-primary/10 h-[700px] flex flex-col">
-                <CardHeader className="border-b border-white/10  from-primary/5 to-secondary/5">
-                  <CardTitle className="text-2xl text-gradient">Chat with Your PDF</CardTitle>
-                  <CardDescription>
-                    {activeDocument ? `Currently viewing: ${activeDocument.name}` : "Select a document to continue"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 overflow-hidden p-0">
-                  <div className="h-full flex flex-col">
-                    <ChatInterface messages={currentMessages} onSendMessage={handleSendMessage} isLoading={isLoading} />
-                    <div className="p-4 border-t border-white/10 bg-white/5 flex items-center gap-2">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf"
-                        onChange={handleFileInputChange}
-                        className="hidden"
-                        aria-label="Upload another PDF"
-                      />
-                      <button
-                        onClick={handleUploadAnotherClick}
-                        className="px-4 py-2 text-sm font-medium rounded-full bg-primary/20 text-primary hover:bg-primary/30 transition-all duration-200 hover:shadow-lg hover:shadow-primary/20"
-                      >
-                        + Upload another PDF
-                      </button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+        {/* Features Showcase */}
+        <div className="glass-effect rounded-2xl p-6 border-gradient">
+          <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2 text-lg">
+            <Zap className="w-5 h-5 text-primary" />
+            Key Features
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FeatureItem icon={Brain} label="Smart Analysis" desc="Instant PDF insights" />
+            <FeatureItem icon={Volume2} label="Voice Learning" desc="Auditory-first experience" />
+            <FeatureItem icon={Sparkles} label="AI Responses" desc="Expert explanations" />
           </div>
         </div>
 
-        {/* Bottom Feature Grid */}
-        {uploadedDocuments.length === 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-12">
-            <PremiumFeatureCard
-              icon={Brain}
-              title="Deep Analysis"
-              description="AI-powered analysis of your PDFs with comprehensive understanding"
-            />
-            <PremiumFeatureCard
-              icon={Volume2}
-              title="Voice Interaction"
-              description="Ask questions naturally using voice-to-text technology"
-            />
-            <PremiumFeatureCard
-              icon={Sparkles}
-              title="Smart Responses"
-              description="Get summaries, MCQs, explanations, and more instantly"
-            />
-          </div>
-        )}
       </div>
     </main>
   )
@@ -351,11 +259,23 @@ function FeatureItem({ icon: Icon, label, desc }: { icon: any; label: string; de
   )
 }
 
-function PremiumFeatureCard({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
+function FeatureCard({ icon: Icon, title, description, color }: { icon: any; title: string; description: string; color: "primary" | "secondary" }) {
   return (
     <div className="glass-effect rounded-2xl p-6 border-gradient card-hover group">
-      <div className="p-3 w-fit rounded-lg  from-primary to-secondary mb-4 group-hover:shadow-lg group-hover:shadow-primary/30 smooth-transition">
-        <Icon className="w-5 h-5 text-white" />
+      <div className={`p-3 w-fit rounded-lg from-${color} to-${color === "primary" ? "secondary" : "primary"} mb-4 group-hover:shadow-lg group-hover:shadow-${color}/30 smooth-transition`}>
+        <Icon className="w-6 h-6 text-white" />
+      </div>
+      <h3 className="text-xl font-semibold text-foreground mb-3">{title}</h3>
+      <p className="text-muted-foreground leading-relaxed">{description}</p>
+    </div>
+  )
+}
+
+function StepCard({ number, title, description }: { number: number; title: string; description: string }) {
+  return (
+    <div className="text-center p-6 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
+      <div className="w-12 h-12 rounded-full from-primary to-secondary flex items-center justify-center mx-auto mb-4 text-white font-bold text-xl">
+        {number}
       </div>
       <h3 className="font-semibold text-foreground mb-2">{title}</h3>
       <p className="text-sm text-muted-foreground">{description}</p>
